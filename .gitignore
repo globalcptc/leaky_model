@@ -180,3 +180,6 @@ training_data/**/*
 
 # stupid mac
 .DS_Store
+
+# don't keep the model files around
+model/*
