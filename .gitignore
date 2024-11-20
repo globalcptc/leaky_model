@@ -183,3 +183,4 @@ training_data/**/*
 
 # don't keep the model files around
 model/*
+*.keras
