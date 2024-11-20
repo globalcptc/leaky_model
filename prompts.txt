@@ -1,10 +1,5 @@
 ip address
-hostname
-username
+user
 password
-sensitive data
-PII
-credentials
-initial access
-critical vulnerabilities including
-a list of users
+found PII
+default credentials
