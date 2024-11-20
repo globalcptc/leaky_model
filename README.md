@@ -2,82 +2,116 @@
 
 This is a simple [LSTM](https://www.sciencedirect.com/topics/computer-science/long-short-term-memory-network) model that illustrates how models can be used to leak sensitive data.
 
-The training process consisted of the following steps:
-
-1. Convert all the PDFs in the [CPTC Report Examples](https://github.com/globalcptc/report_examples) repo to text
-  - First converting the PDF pages to PNG format using imagemagick: `find . -name "*.pdf" -print | xargs -I {} sh -c 'magick -density 150 {} ../pngs/{}_page%d.png'`
-  - Then converting the PNG files to text using tesseract: `find . -name "*.png" -print | xargs -I {} sh -c 'tesseract {} ../txts/{}.txt`
-  - The resulting text files are contained in this repository in the `training_data` directory.
-
-The LSTM model was then trained and saved using keras and tensorflow.
-The `train.py` script generates two files:
-
-1. `text_processor.pkl`: This is a pickled file that contains:
-  - The fitted tokenizer (which knows the vocabulary from your training data)
-  - The sequence length used during training
-  - The vocabulary size
-2. `text_generation_model.keras` (or .h5 in the older format): This is the actual trained neural network model, including:
-  - The model architecture (LSTM layers, etc.)
-  - The trained weights
-  - Model configuration
-
-
 ## Setup
 
-This codebase uses poetry to manage dependencies. You can install what's needed
-using `poetry install` then run `poetry shell` to start the venv.
+This codebase uses poetry to manage dependencies. Install Poetry first, then:
 
-There's also a requirements.txt file if you prefer that but I didn't save
-the version info so YMMV for that working.
+```bash
+# Install dependencies
+poetry install
 
-## Running
-
-### Training
-
-If you want to re-train the model, just run `python3 train.py`.
-Note that the `data_dir` is set as a var in the main function so you can change
-it (and add content to it) as you'd like.
-
-### Generation
-
-To generate content, change the contents of `prompts.txt` to whatever prompts
-you like and then run `python3 generate.py`
-
-Alternatively create your own input file, one prompt per line, and pass that as
-a parameter like so: `python3 generate.py your-filename`
-
-
-# Example Output
-
-```shell
-❯ python3 generate.py
-Model and processor loaded successfully!
-Found 10 prompts to process
-
-Generation parameters:
---------------------
-num_words    = 50
-temperature  = 2.0
-top_k        = 0
-top_p        = 0.0
-
-[1/10] prompt: 'PII discovered'
---------------------------------------------------
-pii discovered statuses node phpinfo ce dissemination exrer 2020 readwrite interested dbname 
-inopmerace 637cb30a875b85e4c432026d5f984e0b53784a65 oa data™ user be entire ettead "lightning 
-substitution 49674msrpc test3 135msrpe refreshed category 651 council fault 10014393 vnc 112119 
-conducts to meterpreter plan 100105065 strict reconfigure ivr htr resources leaving higher 
-cocmnney attacks secure unauthorized script 2 around henceliif uncontrolled 20000000 engagement 
-omarena 1002024 normally discrepancies gothamtlr01 isms phased "ow manager executes byare 
-internal 2021 rich cleanup corpkkms wouldnt indirect every httpsgdprinfoew 
-httpsvwwcoalfirecomthecoalfireblogmarch2019passwordsprayingwhattodoandhowtoavoidit
---------------------------------------------------
-
-... [redacted for brevity] ...
-
+# Activate the virtual environment
+poetry shell
 ```
 
-## matching output to training data 
+Alternatively, you can use pip with the provided requirements.txt, though version compatibility isn't guaranteed:
+
+```bash
+pip install -r requirements.txt
+```
+
+Required system dependencies:
+- Python 3.12
+- Tesseract OCR
+- OpenCV
+
+## Data Preparation
+
+The training process consists of two main steps:
+
+1. **Data Preparation**: Converting PDFs to markdown files using OCR
+2. **Model Training**: Training the LSTM model on the processed text
+
+### Step 1: Preparing the Data
+
+![an image showing example output of the preprocessing](https://github.com/globalcptc/leaky_model/blob/main/img/preprocessing.png)
+
+The `data-prep.py` script handles the PDF to markdown conversion process:
+
+1. Place your PDF files in the `training_data/pdf` directory
+2. Run the data preparation script:
+   ```bash
+   python data-prep.py
+   ```
+
+The script will:
+- Process PDFs in parallel using multiple worker threads
+- Convert PDF pages to enhanced images
+- Perform OCR using Tesseract with optimized settings
+- Clean and normalize the extracted text
+- Save the results as markdown files in `training_data/markdown`
+- Track progress and can resume interrupted processing
+
+Features:
+- Graceful shutdown handling (Ctrl+C)
+- Progress tracking for each worker
+- Error handling and recovery
+- Automated image enhancement for better OCR results
+- Text cleaning and normalization
+
+### Step 2: Training the Model
+
+![an image showing example output of the training step](https://github.com/globalcptc/leaky_model/blob/main/img/training.png)
+
+Once the data is prepared, use `train.py` to train the model:
+
+```bash
+python train.py
+```
+
+The script will:
+1. Process the markdown files in `training_data/markdown`
+2. Fit a tokenizer to the vocabulary
+3. Create training sequences
+4. Train the LSTM model
+
+The training process generates two important files:
+
+1. `text_processor.pkl`: Contains:
+   - Fitted tokenizer with vocabulary
+   - Sequence length configuration
+   - Vocabulary size
+
+2. `text_generation_model.keras`: The trained model including:
+   - LSTM model architecture
+   - Trained weights
+   - Model configuration
+
+## Generating Text
+
+To generate content from the trained model:
+
+1. Edit `prompts.txt` with your desired prompts (one per line)
+2. Run the generator:
+   ```bash
+   python generate.py
+   ```
+
+Or specify a custom prompts file:
+```bash
+python generate.py your-prompts-file.txt
+```
+
+Generation parameters can be adjusted in `generate.py`:
+- `num_words`: Number of words to generate
+- `temperature`: Controls randomness (higher = more random)
+- `top_k`: Limits to top K most likely tokens
+- `top_p`: Uses nucleus sampling threshold
+
+
+## Example Output Generations
+
+## matching output to training data
 
 ![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/img/match-to-training-data.png)
 
@@ -86,4 +120,6 @@ httpsvwwcoalfirecomthecoalfireblogmarch2019passwordsprayingwhattodoandhowtoavoid
 ![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/img/example-leaked-data.png)
 
 
+## Important Note
 
+This model is designed to demonstrate how training data can be leaked through language models. It should be used responsibly and only with data you have permission to use.
