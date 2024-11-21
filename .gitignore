@@ -161,22 +161,22 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Ignore everything in training_data directory
-training_data/*
-training_data/**/*
+# Ignore everything in data directory
+data/*
+data/**/*
 
 # But keep the directories with .gitkeep
-!training_data/.gitkeep
-!training_data/*/
-!training_data/*/.gitkeep
-!training_data/pdf/.gitkeep
-# training_data/markdown/.processing_progress.json
-!training_data/markdown/.gitkeep
-!training_data/markdown/images/.gitkeep
-!training_data/text/.gitkeep
+!data/.gitkeep
+!data/*/
+!data/*/.gitkeep
+!data/pdf/.gitkeep
+# data/markdown/.processing_progress.json
+!data/markdown/.gitkeep
+!data/markdown/images/.gitkeep
+!data/text/.gitkeep
 
 # and keep any.tgz if present
-!training_data/*.tgz
+!data/*.tgz
 
 # stupid mac
 .DS_Store
