@@ -1,162 +1,183 @@
-import numpy as np
-import string
-from keras.models import load_model
-from pickle import load
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from typing import Optional
+# generate.py
+import argparse
+from datetime import datetime
+from pathlib import Path
+from typing import List
+from tensorflow.keras.models import load_model
+from src.config import Config
+from src.training.text_processor import TextProcessor
+from src.utils.progress_tracker import ProgressTracker
+from src.utils.graceful_killer import GracefulKiller
 
 
-class TextProcessor:
-    def __init__(self, sequence_length: int = 50):
-        self.tokenizer = None
-        self.sequence_length = sequence_length
-        self.vocab_size = 0
-
-    def clean_text(self, text: str) -> str:
-        """Clean and normalize text."""
-        if not text:
-            return ""
-
-        # Convert to lowercase
-        text = text.lower()
-        # Remove punctuation
-        text = text.translate(str.maketrans("", "", string.punctuation))
-        # Remove extra whitespace
-        text = " ".join(text.split())
-        return text
-
-    @classmethod
-    def load(cls, filepath: str) -> 'TextProcessor':
-        """Load a saved TextProcessor."""
-        with open(filepath, 'rb') as f:
-            config = load(f)
-
-        processor = cls(sequence_length=config['sequence_length'])
-        processor.tokenizer = config['tokenizer']
-        processor.vocab_size = config['vocab_size']
-        return processor
+def read_prompts(prompts_file: Path) -> List[str]:
+    """Read prompts from a file, one per line."""
+    with open(prompts_file, 'r', encoding='utf-8') as f:
+        return [line.strip() for line in f if line.strip()]
 
 
-def generate_text(model, processor, seed_text: str, num_words: int = 50,
-                  temperature: float = 1.0, top_k: int = 0, top_p: float = 0.0) -> Optional[str]:
-    """
-    Generate text based on a seed string.
-
-    Args:
-        model: The trained Keras model
-        processor: TextProcessor instance
-        seed_text: Starting text to generate from
-        num_words: Number of words to generate
-        temperature: Controls randomness (higher = more random, lower = more deterministic)
-        top_k: If > 0, only sample from the top k most likely tokens
-        top_p: If > 0.0, sample from the smallest set of tokens whose cumulative probability exceeds p
-    """
-    try:
-        current_sequence = processor.clean_text(seed_text)
-        if not current_sequence:
-            return None
-
-        result = current_sequence
-
-        for _ in range(num_words):
-            sequence = processor.tokenizer.texts_to_sequences([current_sequence])[
-                0]
-            sequence = pad_sequences(
-                [sequence], maxlen=processor.sequence_length)
-
-            # Get raw predictions
-            pred_probs = model.predict(sequence, verbose=0)[0]
-
-            # Apply temperature scaling
-            if temperature != 1.0:
-                pred_probs = np.log(pred_probs) / temperature
-                pred_probs = np.exp(pred_probs)
-                pred_probs = pred_probs / np.sum(pred_probs)
-
-            # Apply top-k filtering
-            if top_k > 0:
-                top_k_idx = np.argsort(pred_probs)[-top_k:]
-                mask = np.zeros_like(pred_probs)
-                mask[top_k_idx] = 1
-                pred_probs = pred_probs * mask
-                pred_probs = pred_probs / np.sum(pred_probs)
-
-            # Apply nucleus (top-p) sampling
-            if top_p > 0.0:
-                sorted_probs = np.sort(pred_probs)[::-1]
-                cumsum_probs = np.cumsum(sorted_probs)
-                cutoff = sorted_probs[np.argmax(cumsum_probs > top_p)]
-                mask = pred_probs >= cutoff
-                pred_probs = pred_probs * mask
-                pred_probs = pred_probs / np.sum(pred_probs)
-
-            # Sample from the modified distribution
-            pred_word_idx = np.random.choice(len(pred_probs), p=pred_probs)
-
-            # Convert predicted word index back to word
-            for word, index in processor.tokenizer.word_index.items():
-                if index == pred_word_idx:
-                    result += " " + word
-                    current_sequence = " ".join(
-                        result.split()[-processor.sequence_length:])
-                    break
-
-        return result
-    except Exception as e:
-        print(f"Error generating text for seed '{seed_text}': {str(e)}")
-        return None
+def generate_text(model, processor, seed_text: str, **params) -> str:
+    """Generate text using the trained model."""
+    return processor.generate_text(model, seed_text, **params)
 
 
-if __name__ == "__main__":
-    import sys
+def main():
+    # Set up environment and directories
+    Config.setup_environment()
+    Config.setup_directories()
 
-    # Use prompts.txt as default if no file provided
-    prompts_file = sys.argv[1] if len(sys.argv) > 1 else 'prompts.txt'
+    parser = argparse.ArgumentParser(
+        description='Generate text using trained LSTM model.'
+    )
+    parser.add_argument(
+        '--model-dir',
+        type=str,
+        default=str(Config.MODEL_DIR),
+        help='Directory containing trained model and processor'
+    )
+    parser.add_argument(
+        '--prompts-file',
+        type=str,
+        default=str(Config.BASE_DIR / 'prompts.txt'),
+        help='File containing prompts for text generation'
+    )
+    parser.add_argument(
+        '--output-dir',
+        type=str,
+        default=str(Config.DATA_DIR / 'generated'),
+        help='Directory to save generated text'
+    )
+    parser.add_argument(
+        '--num-words',
+        type=int,
+        default=Config.DEFAULT_NUM_WORDS,
+        help='Number of words to generate'
+    )
+    parser.add_argument(
+        '--temperature',
+        type=float,
+        default=Config.DEFAULT_TEMPERATURE,
+        help='Sampling temperature (higher = more random)'
+    )
+    parser.add_argument(
+        '--top-k',
+        type=int,
+        default=Config.DEFAULT_TOP_K,
+        help='Top-k sampling parameter (0 to disable)'
+    )
+    parser.add_argument(
+        '--top-p',
+        type=float,
+        default=Config.DEFAULT_TOP_P,
+        help='Nucleus sampling parameter (0.0 to disable)'
+    )
+    args = parser.parse_args()
 
-    # Generation parameters
-    params = {
-        'num_words': 50,
-        'temperature': 2.0,  # Higher = more random, 0.0 to disable
-        'top_k': 0,          # Higher = more likely, 0 to disable
-        'top_p': 0.0         # Higher = more likely, 0.0 to disable
-    }
+    # Initialize directories
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize progress tracking
+    progress_file = output_dir / '.generation_progress.json'
+    progress_tracker = ProgressTracker(progress_file)
+
+    # Initialize graceful shutdown handler
+    killer = GracefulKiller()
 
     # Load model and processor
     try:
-        model = load_model('text_generation_model.keras')
-        processor = TextProcessor.load('text_processor.pkl')
+        model_path = Path(args.model_dir) / 'text_generation_model.keras'
+        processor_path = Path(args.model_dir) / 'text_processor.pkl'
+
+        print("\nLoading model and processor...")
+        model = load_model(model_path)
+        processor = TextProcessor.load(processor_path)
         print("Model and processor loaded successfully!")
     except Exception as e:
-        print(f"Error loading model or processor: {str(e)}")
-        sys.exit(1)
+        print(f"\nError loading model or processor: {str(e)}")
+        return
 
-    # Read and process prompts
+    # Read prompts
     try:
-        with open(prompts_file, 'r') as f:
-            prompts = [line.strip() for line in f if line.strip()]
+        prompts = read_prompts(Path(args.prompts_file))
+        print(f"\nFound {len(prompts)} prompts to process")
     except Exception as e:
-        print(f"Error reading prompts file: {str(e)}")
-        sys.exit(1)
+        print(f"\nError reading prompts file: {str(e)}")
+        return
 
-    print(f"Found {len(prompts)} prompts to process")
+    # Generation parameters
+    params = {
+        'num_words': args.num_words,
+        'temperature': args.temperature,
+        'top_k': args.top_k,
+        'top_p': args.top_p
+    }
 
     print("\nGeneration parameters:")
     print("-" * 20)
     for param, value in params.items():
         print(f"{param:12} = {value}")
 
-    # Process each prompt
-    for i, prompt in enumerate(prompts, 1):
-        print(f"\n[{i}/{len(prompts)}] Prompt: '{prompt}'")
-        print("-" * 50)
+    # Generate text for each prompt
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = output_dir / f"generated_text_{timestamp}.txt"
 
-        generated = generate_text(
-            model=model,
-            processor=processor,
-            seed_text=prompt,
-            **params
-        )
+    print(f"\nGenerating text...")
+    print(f"Output will be saved to: {output_file}")
 
-        if generated:
-            print(generated)
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for i, prompt in enumerate(prompts, 1):
+            if killer.kill_now:
+                print("\nGraceful shutdown requested...")
+                break
+
+            print(f"\n[{i}/{len(prompts)}] Prompt: '{prompt}'")
             print("-" * 50)
+
+            try:
+                if not progress_tracker.is_completed(prompt):
+                    generated = generate_text(
+                        model, processor, prompt, **params)
+                    if generated:
+                        # Save to file
+                        f.write(f"Prompt: {prompt}\n")
+                        f.write("-" * 50 + "\n")
+                        f.write(generated + "\n")
+                        f.write("=" * 50 + "\n\n")
+                        f.flush()  # Ensure content is written immediately
+
+                        # Print to console
+                        print(generated)
+                        print("-" * 50)
+
+                        # Update progress
+                        progress_tracker.update_file_progress(
+                            Path(prompt),
+                            completed=True,
+                            metadata={
+                                "output_file": str(output_file),
+                                "parameters": params,
+                                "length": len(generated.split())
+                            }
+                        )
+                    else:
+                        print("Failed to generate text for this prompt")
+                else:
+                    print("Prompt already processed, skipping...")
+
+            except Exception as e:
+                print(f"Error generating text: {str(e)}")
+                progress_tracker.update_file_progress(
+                    Path(prompt),
+                    completed=False,
+                    metadata={"error": str(e)}
+                )
+            finally:
+                progress_tracker.save_progress()
+
+    print("\nGeneration completed!")
+    print(f"Output saved to: {output_file}")
+
+
+if __name__ == "__main__":
+    main()

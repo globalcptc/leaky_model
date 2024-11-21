@@ -1,12 +1,45 @@
 # Leaky Model
 
-This is a simple [LSTM](https://www.sciencedirect.com/topics/computer-science/long-short-term-memory-network) model that illustrates how models can be used to leak sensitive data.
+This project demonstrates how language models can potentially leak sensitive training data. It provides a modular implementation of an LSTM-based text generation model, complete with preprocessing, training, and generation capabilities.
+
+## Project Structure
+
+```
+leaky_model/
+├── data/
+│   ├── raw/             # Raw PDF files
+│   ├── processed/       # Preprocessed markdown files
+│   └── tmp/            # Temporary files during processing
+├── model/              # Trained models and processors
+│   ├── text_generation_model.keras
+│   └── text_processor.pkl
+├── src/
+│   ├── preprocessing/  # PDF and image processing
+│   │   ├── pdf_processor.py
+│   │   ├── image_enhancer.py
+│   │   └── text_cleaner.py
+│   ├── training/      # Model training components
+│   │   ├── model_builder.py
+│   │   └── text_processor.py
+│   ├── utils/         # Utility functions
+│   │   ├── graceful_killer.py
+│   │   ├── progress_tracker.py
+│   │   └── text_file_reader.py
+│   ├── config.py      # Configuration settings
+│   └── prompts.txt    # Example prompts for generation
+├── preprocess.py      # PDF preprocessing script
+├── train.py          # Model training script
+└── generate.py       # Text generation script
+```
 
 ## Setup
 
-This codebase uses poetry to manage dependencies. Install Poetry first, then:
+This project uses poetry for dependency management. To get started:
 
 ```bash
+# Install Poetry (if not already installed)
+curl -sSL https://install.python-poetry.org | python3 -
+
 # Install dependencies
 poetry install
 
@@ -14,108 +47,112 @@ poetry install
 poetry shell
 ```
 
-Alternatively, you can use pip with the provided requirements.txt, though version compatibility isn't guaranteed:
+Alternatively, you can use pip with the provided requirements.txt:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Required system dependencies:
+### System Requirements
+
 - Python 3.12
 - Tesseract OCR
 - OpenCV
 
-## Data Preparation
+## Usage
 
-The training process consists of two main steps:
+The project is divided into three main steps:
 
-1. **Data Preparation**: Converting PDFs to markdown files using OCR
-2. **Model Training**: Training the LSTM model on the processed text
-
-### Step 1: Preparing the Data
+### 1. Preprocessing PDFs
 
 ![an image showing example output of the preprocessing](https://github.com/globalcptc/leaky_model/blob/main/img/preprocessing.png)
 
-The `data-prep.py` script handles the PDF to markdown conversion process:
+Convert PDF files to preprocessed markdown format:
 
-1. Place your PDF files in the `training_data/pdf` directory
-2. Run the data preparation script:
-   ```bash
-   python data-prep.py
-   ```
+```bash
+python preprocess.py --input-dir data/raw --output-dir data/processed
 
-The script will:
-- Process PDFs in parallel using multiple worker threads
-- Convert PDF pages to enhanced images
-- Perform OCR using Tesseract with optimized settings
-- Clean and normalize the extracted text
-- Save the results as markdown files in `training_data/markdown`
-- Track progress and can resume interrupted processing
+# Additional options:
+#   --temp-dir data/tmp     # Directory for temporary files
+```
 
 Features:
-- Graceful shutdown handling (Ctrl+C)
-- Progress tracking for each worker
-- Error handling and recovery
-- Automated image enhancement for better OCR results
-- Text cleaning and normalization
+- Multi-threaded PDF processing
+- OCR for scanned documents
+- Image enhancement for better text extraction
+- Progress tracking and resumable processing
+- Graceful shutdown handling
 
-### Step 2: Training the Model
+### 2. Training the Model
 
 ![an image showing example output of the training step](https://github.com/globalcptc/leaky_model/blob/main/img/training.png)
 
-Once the data is prepared, use `train.py` to train the model:
+Train the LSTM model on preprocessed data:
 
 ```bash
-python train.py
+python train.py --data-dir data/processed --model-dir model
+
+# Additional options:
+#   --sequence-length 50    # Length of input sequences
+#   --embedding-dim 100     # Dimension of word embeddings
+#   --batch-size 128       # Training batch size
 ```
 
-The script will:
-1. Process the markdown files in `training_data/markdown`
-2. Fit a tokenizer to the vocabulary
-3. Create training sequences
-4. Train the LSTM model
+The training process:
+1. Processes markdown files
+2. Fits tokenizer to vocabulary
+3. Creates training sequences
+4. Trains LSTM model with progress tracking
+5. Saves model and processor files
 
-The training process generates two important files:
+### 3. Generating Text
 
-1. `text_processor.pkl`: Contains:
-   - Fitted tokenizer with vocabulary
-   - Sequence length configuration
-   - Vocabulary size
+Generate text using the trained model:
 
-2. `text_generation_model.keras`: The trained model including:
-   - LSTM model architecture
-   - Trained weights
-   - Model configuration
-
-## Generating Text
-
-To generate content from the trained model:
-
-1. Edit `prompts.txt` with your desired prompts (one per line)
-2. Run the generator:
-   ```bash
-   python generate.py
-   ```
-
-Or specify a custom prompts file:
 ```bash
-python generate.py your-prompts-file.txt
+python generate.py --prompts-file src/prompts.txt
+
+# Additional options:
+#   --model-dir model      # Directory containing model files
+#   --num-words 50        # Number of words to generate
+#   --temperature 1.0     # Sampling temperature (higher = more random)
+#   --top-k 0            # Top-k sampling parameter
+#   --top-p 0.0          # Nucleus sampling parameter
 ```
 
-Generation parameters can be adjusted in `generate.py`:
-- `num_words`: Number of words to generate
-- `temperature`: Controls randomness (higher = more random)
-- `top_k`: Limits to top K most likely tokens
-- `top_p`: Uses nucleus sampling threshold
+## Key Components
 
+### Preprocessing
+- `PDFProcessor`: Handles PDF reading and text extraction
+- `ImageEnhancer`: Improves image quality for OCR
+- `TextCleaner`: Normalizes and cleans extracted text
 
-## Example Output Generations
+### Training
+- `ModelBuilder`: Creates and configures the LSTM model
+- `TextProcessor`: Handles text tokenization and sequence creation
 
-## matching output to training data
+### Utils
+- `GracefulKiller`: Manages graceful shutdown of long-running processes
+- `ProgressTracker`: Tracks and saves processing progress
+- `TextFileReader`: Efficient reading of text/markdown files
+
+## Configuration
+
+Global settings are managed in `src/config.py`:
+- Path configurations
+- Model parameters
+- Processing settings
+- Default values
+
+## Example Output
+
+Here are some examples of model outputs that illustrate potential data leakage:
+
+### matching output to training data
 
 ![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/img/match-to-training-data.png)
 
-## highlighted sensitive training data in output
+### highlighted sensitive training data in output
 
 ![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/img/example-leaked-data.png)
 
@@ -123,3 +160,7 @@ Generation parameters can be adjusted in `generate.py`:
 ## Important Note
 
 This model is designed to demonstrate how training data can be leaked through language models. It should be used responsibly and only with data you have permission to use.
+
+## License
+
+Apache 2.0 License
