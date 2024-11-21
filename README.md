@@ -1,7 +1,5 @@
 # Leaky Model
 
-# Leaky Model
-
 This project demonstrates how language models can potentially leak sensitive training data. It provides a modular implementation of an LSTM-based text generation model, complete with preprocessing, training, and generation capabilities.
 
 ## Project Structure
