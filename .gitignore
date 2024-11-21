@@ -182,5 +182,6 @@ data/**/*
 .DS_Store
 
 # don't keep the model files around
-model/*
 *.keras
+model/*
+!model/text_processor.pkl
