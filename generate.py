@@ -1,6 +1,6 @@
 # generate.py
 import argparse
-from datetime import datet
+from datetime import datetime
 from pathlib import Path
 from typing import List
 from tensorflow.keras.models import load_model
@@ -38,7 +38,7 @@ def main():
     parser.add_argument(
         '--prompts-file',
         type=str,
-        default=str(Config.BASE_DIR / 'src' / 'prompts.txt'),
+        default=str(Config.BASE_DIR / 'prompts.txt'),
         help='File containing prompts for text generation'
     )
     parser.add_argument(
