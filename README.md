@@ -65,7 +65,7 @@ The project is divided into three main steps:
 
 ### 1. Preprocessing PDFs
 
-![an image showing example output of the preprocessing](https://github.com/globalcptc/leaky_model/blob/main/img/preprocessing.png)
+![an image showing example output of the preprocessing](https://github.com/globalcptc/leaky_model/blob/main/docs/img/preprocessing.png)
 
 Convert PDF files to preprocessed markdown format:
 
@@ -85,7 +85,7 @@ Features:
 
 ### 2. Training the Model
 
-![an image showing example output of the training step](https://github.com/globalcptc/leaky_model/blob/main/img/training.png)
+![an image showing example output of the training step](https://github.com/globalcptc/leaky_model/blob/main/docs/img/training.png)
 
 Train the LSTM model on preprocessed data:
 
@@ -150,11 +150,11 @@ Here are some examples of model outputs that illustrate potential data leakage:
 
 ### matching output to training data
 
-![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/img/match-to-training-data.png)
+![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/docs/img/match-to-training-data.png)
 
 ### highlighted sensitive training data in output
 
-![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/img/example-leaked-data.png)
+![an image showing example output with sensitive training data highlighted in red](https://github.com/globalcptc/leaky_model/blob/main/docs/img/example-leaked-data.png)
 
 
 ## Important Note
